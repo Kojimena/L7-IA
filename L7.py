@@ -29,6 +29,7 @@ def create_board():
 
 def drop_piece(board, row, col, piece):
     board[row][col] = piece
+    return board
 
 
 def is_valid_location(board, col):
@@ -262,11 +263,247 @@ def minimax_pruning(tablero, profundidad, alfa, beta, maximizando_jugador):
                 break
         return columna, valor_min
     
+"""
+TD Learning
+"""
+
+#Defina la representación del estado
+#matriz de representacion del tablero
+# 0: casilla vacia
+# 1: casilla ocupada por el jugador 1
+# 2: casilla ocupada por el jugador 2
+
+
+def get_state(board):  # Se define el estado como una lista de 43 elementos
+    # board, turno, ganador
+    
+    # Codificar el tablero de juego
+    game_state = []
+    for r in range(ROW_COUNT):
+        for c in range(COLUMN_COUNT):
+            if board[r][c] == JUGADOR_PIEZA:
+                game_state.append(1)  # Casilla ocupada por el jugador 1
+            elif board[r][c] == IA_PIEZA:
+                game_state.append(2)  # Casilla ocupada por el jugador 2
+            else:
+                game_state.append(0)  # Casilla vacía
+
+    # Agregar información sobre el turno del jugador
+    if turn == JUGADOR:
+        game_state.append(1)  # Turno del jugador 1
+    else:
+        game_state.append(-1)  # Turno del jugador 2
+
+    # Agregar información sobre el estado del juego (si ha terminado y quién ha ganado)
+    if winning_move(board, JUGADOR_PIEZA):
+        game_state.append(1)  # El jugador 1 ha ganado
+    elif winning_move(board, IA_PIEZA):
+        game_state.append(-1)  # El jugador 2 ha ganado
+    elif len(lugares_validos(board)) == 0:
+        game_state.append(0)  # Empate
+    else:
+        game_state.append(0)  # Juego en curso
+
+    return game_state
+
+
+def get_action_space(state):  # Se define el espacio de acciones como las columnas donde se puede dejar una ficha
+    dim = ROW_COUNT * COLUMN_COUNT
+    board_from_state = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    return lugares_validos(board_from_state)
+
+
+def decode_board_state(game_state):
+    board = []
+    for i in range(ROW_COUNT):
+        row = []
+        for j in range(COLUMN_COUNT):
+            index = i * COLUMN_COUNT + j
+            if game_state[index] == 1:
+                row.append(JUGADOR_PIEZA)
+            elif game_state[index] == -1:
+                row.append(IA_PIEZA)
+            else:
+                row.append(VACIO)
+        board.append(row)
+    return board
+
+def get_reward(state, action, player):  # Se define la recompensa como 1 si el jugador gana, -1 si la IA gana, 0 si hay empate y 0.1 si el juego sigue
+    board_from_state = decode_board_state(state)
+    # print_board(board_from_state)
+    
+    next_board = board_from_state.copy()
+    row = get_next_open_row(next_board, action)
+    drop_piece(next_board, row, action, JUGADOR_PIEZA)
+
+    other_player = (player + 1) % 2
+    
+    if winning_move(next_board, player):
+        return 100
+    elif winning_move(next_board, other_player):
+        return -100
+    elif len(lugares_validos(next_board)) == 0:
+        return -10
+    else:
+        return 1
+    
+def get_next_state(state, action):  # Se define el siguiente estado como el estado resultante de dejar una ficha en una columna
+    dim = ROW_COUNT * COLUMN_COUNT
+    board_from_state = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    next_board = board_from_state.copy()
+    row = get_next_open_row(next_board, action)
+    drop_piece(next_board, row, action, JUGADOR_PIEZA)
+    next_state = get_state(next_board)
+    return next_state
+
+
+def get_initial_state():  # Se define el estado inicial como el tablero vacío
+    return get_state(create_board())
+
+def is_terminal_state(state):  # Se define un estado terminal como un estado en el que el juego ha terminado
+    return state[-1] != 0
+
+def get_winner(state):  # Se define el ganador como el jugador que ha ganado
+    if state[-1] == 1:
+        return 1
+    elif state[-1] == -1:
+        return -1
+    else:
+        return 0
+    
+def get_state_representation(state):  # Se define la representación del estado como el tablero de juego
+    dim = ROW_COUNT * COLUMN_COUNT
+    return np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+
+
+def td_learning(Q, state, action, reward, next_state, alpha, gamma):  
+    dim = ROW_COUNT * COLUMN_COUNT
+    state_representation = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    next_state_representation = np.array(next_state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    state_action = (tuple(state[:dim]), action)
+    next_action_space = get_action_space(next_state)
+    next_action = random.choice(next_action_space)
+    next_state_action = (tuple(next_state[:dim]), next_action)
+    
+    if next_state_action not in Q:
+        Q[next_state_action] = 0
+
+    if state_action not in Q:
+        Q[state_action] = 0
+
+    Q[state_action] = Q[state_action] + alpha * (reward + gamma * Q[next_state_action] - Q[state_action])
+    
+    return Q
+
+
+def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-learning
+    Q = {}
+    alpha = 0.1
+    gamma = 0.8
+    print("Entrenando el modelo TD...")
+    for episode in range(episodes):
+        state = get_initial_state()
+        turn = random.choice([JUGADOR, IA])
+
+        while not is_terminal_state(state):
+            if turn == JUGADOR: # Jugador a entrenar
+                action_space = get_action_space(state)
+                action = random.choice(action_space)
+                reward = get_reward(state, action, JUGADOR)
+                next_state = get_next_state(state, action)
+                Q = td_learning(Q, state, action, reward, next_state, alpha, gamma)
+                state = next_state
+                turn += 1
+                turn = turn % 2
+
+            else:
+                # este es cualquier jugador que no sea el jugador a entrenar. elige una acción aleatoria
+                action_space = get_action_space(state)
+                action = random.choice(action_space)
+                next_state = get_next_state(state, action)
+                state = next_state
+
+                turn += 1
+                turn = turn % 2                
+
+        if episode % 1000 == 0:
+            print("Episodio", episode)
+
+    print("Modelo TD entrenado")
+    return Q
+
+
+def play_td_vs_minimax(Q, algoritmo_alfa_beta=False):
+    """
+    Función para enfrentar el modelo TD contra el algoritmo minimax
+    :param Q: Modelo TD
+    :param algoritmo_alfa_beta: Si es True, se usa el algoritmo minimax con poda alfa-beta
+    """
+
+    board = create_board()
+    print_board(board)
+    game_over = False
+    turn = random.choice([JUGADOR, IA])  # Se elige aleatoriamente quién empieza
+
+    while not game_over:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                sys.exit()
+
+        if turn == JUGADOR and not game_over:  # Algoritmo de TD
+            state = get_state(board)
+            action_space = get_action_space(state)
+            
+            action = max(action_space, key=lambda x: Q.get((tuple(state[:ROW_COUNT*COLUMN_COUNT]), x), 0))
+
+            if is_valid_location(board, action):
+                row = get_next_open_row(board, action)
+                drop_piece(board, row, action, JUGADOR_PIEZA)
+
+                if winning_move(board, JUGADOR_PIEZA):
+                    print("Algoritmo de TD gana!!")
+                    game_over = True
+                    draw_board(board)
+                    print_board(board)
+
+                    return JUGADOR
+
+
+                turn += 1
+                turn = turn % 2
+
+        if turn == IA and not game_over:  # Algoritmo de minimax
+            if algoritmo_alfa_beta:
+                action, _ = minimax_pruning(board, 5, float('-inf'), float('inf'), False)
+            else:
+                action, _ = minimax(board, 5, False)
+            if is_valid_location(board, action):
+                row = get_next_open_row(board, action)
+                drop_piece(board, row, action, IA_PIEZA)
+
+                if winning_move(board, IA_PIEZA):
+                    print("Algoritmo de minimax gana!!")
+                    game_over = True
+
+                    print_board(board)
+                    draw_board(board)
+
+                    return IA
+
+                turn += 1
+                turn = turn % 2
+
 
 board = create_board()
 print_board(board)
 game_over = False
 turn = 0
+
+# Entrenar el modelo
+
+Q_trained = train_td_learning(5000)
+print(Q_trained)
+
 
 pygame.init()
 
@@ -291,7 +528,7 @@ Modos de Juego
 1. IA vs Jugador
 2. IA vs IA
 """
-MODO_JUEGO = 2
+MODO_JUEGO = 3
 
 """
 Algoritmo de IA
@@ -302,118 +539,13 @@ Algoritmo de IA
 ALGORITMO_IA = 1
 ALGORITMO_IA2 = 2
 
-while not game_over:
+ganadores = []
+for i in range(25):
+    print("Jugando TD vs Minimax")
+    ganadores.append(play_td_vs_minimax(Q_trained, False))
+    game_over = True
 
-    if MODO_JUEGO == 1:   # IA vs Jugador
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                sys.exit()
-
-            if event.type == pygame.MOUSEMOTION:
-                pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE))
-                posx = event.pos[0]
-                if turn == JUGADOR:
-                    pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE / 2)), RADIUS)
-
-            pygame.display.update()
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                pygame.draw.rect(screen, BLACK, (0, 0, width, SQUARESIZE))
-                # print(event.pos)
-                # Jugador 1 input
-                if turn == JUGADOR:
-                    posx = event.pos[0]
-                    col = int(math.floor(posx / SQUARESIZE))
-
-                    if is_valid_location(board, col):
-                        row = get_next_open_row(board, col)
-                        drop_piece(board, row, col, JUGADOR_PIEZA)
-
-                        if winning_move(board, JUGADOR_PIEZA):
-                            label = myfont.render("Jugador 1 gana!!", 1, RED)
-                            screen.blit(label, (40, 10))
-                            game_over = True
-
-                        turn += 1
-                        turn = turn % 2
-
-                        print_board(board)
-                        draw_board(board)
-
-            if turn == IA and not game_over:
-                #col = random.randint(0, COLUMN_COUNT-1)
-                if ALGORITMO_IA == 1:
-                    col, minimax_score = minimax(board, 5, True)
-                else:
-                    col, minimax_score = minimax_pruning(board, 5, float('-inf'), float('inf'), True)
-
-                if is_valid_location(board, col):
-                    pygame.time.wait(500)
-                    row = get_next_open_row(board, col)
-                    drop_piece(board, row, col, IA_PIEZA)
-
-                    if winning_move(board, IA_PIEZA):
-                        label = myfont.render("IA gana!!", 1, YELLOW)
-                        screen.blit(label, (40, 10))
-                        game_over = True
-
-                    print_board(board)
-                    draw_board(board)
-
-                    turn += 1
-                    turn = turn % 2
-
-                    if game_over:
-                        pygame.time.wait(3000)
-
-    elif MODO_JUEGO == 2:   # IA vs IA
-        # La segunda IA controlará la pieza Jugador
-        if turn == JUGADOR and not game_over:  # IA 1
-            if ALGORITMO_IA == 1:
-                col, minimax_score = minimax(board, 1, True)
-            else:
-                col, minimax_score = minimax_pruning(board, 1, float('-inf'), float('inf'), True)
-
-            if is_valid_location(board, col):
-                pygame.time.wait(500)
-                row = get_next_open_row(board, col)
-                drop_piece(board, row, col, JUGADOR_PIEZA)
-
-                if winning_move(board, JUGADOR_PIEZA):
-                    label = myfont.render("IA 1 gana!!", 1, RED)
-                    screen.blit(label, (40, 10))
-                    game_over = True
-
-                print_board(board)
-                draw_board(board)
-
-                turn += 1
-                turn = turn % 2
-
-                if game_over:
-                    pygame.time.wait(3000)
-
-        if turn == IA and not game_over:  # IA 2
-            if ALGORITMO_IA2 == 1:
-                col, minimax_score = minimax(board, 5, False)
-            else:
-                col, minimax_score = minimax_pruning(board, 5, float('-inf'), float('inf'), False)
-
-            if is_valid_location(board, col):
-                pygame.time.wait(500)
-                row = get_next_open_row(board, col)
-                drop_piece(board, row, col, IA_PIEZA)
-
-                if winning_move(board, IA_PIEZA):
-                    label = myfont.render("IA 2 gana!!", 1, YELLOW)
-                    screen.blit(label, (40, 10))
-                    game_over = True
-
-                print_board(board)
-                draw_board(board)
-
-                turn += 1
-                turn = turn % 2
-
-                if game_over:
-                    pygame.time.wait(3000)
+# imprimir los resultados como tabla de frecuencias
+print("Frecuencia de victorias")
+print("TD: ", ganadores.count(JUGADOR))
+print("Minimax: ", ganadores.count(IA))
