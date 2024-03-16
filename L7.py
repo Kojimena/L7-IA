@@ -3,6 +3,7 @@ import pygame
 import sys
 import math
 import random
+import matplotlib.pyplot as plt
 
 BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
@@ -269,15 +270,12 @@ def minimax_pruning(tablero, profundidad, alfa, beta, maximizando_jugador):
 TD Learning
 """
 
-
-# Defina la representación del estado
-# matriz de representacion del tablero
-# 0: casilla vacia
-# 1: casilla ocupada por el jugador 1
-# 2: casilla ocupada por el jugador 2
-
-
-def get_state(board):  # Se define el estado como una lista de 43 elementos
+def get_state(board):
+    """
+    Representación del estado
+    :param board: Tablero de juego
+    :return: Representación del estado
+    """
     # board, turno, ganador
 
     # Codificar el tablero de juego
@@ -309,8 +307,13 @@ def get_state(board):  # Se define el estado como una lista de 43 elementos
 
     return game_state
 
+def get_action_space(state):
+    """
+    Espacio de acción
+    :param state: Representación del estado
+    :return: Espacio de acción
+    """
 
-def get_action_space(state):  # Se define el espacio de acciones como las columnas donde se puede dejar una ficha
     dim = ROW_COUNT * COLUMN_COUNT
     board_from_state = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
     return lugares_validos(board_from_state)
@@ -332,9 +335,14 @@ def decode_board_state(game_state):
     return board
 
 
-def get_reward(state, action, player):  # Se define la recompensa como 1 si el jugador gana, -1 si la IA gana, 0 si hay empate y 0.1 si el juego sigue
+def get_reward(state, action, player): 
+    """"
+    Recompensas
+    :param state: Representación del estado
+    :param action: Acción
+    :param player: Jugador
+    """
     board_from_state = decode_board_state(state)
-    # print_board(board_from_state)
 
     next_board = board_from_state.copy()
     row = get_next_open_row(next_board, action)
@@ -388,6 +396,18 @@ def get_state_representation(state):  # Se define la representación del estado 
 
 
 def td_learning(Q, state, action, reward, next_state, alpha, gamma):
+    """
+    Algoritmo de aprendizaje TD
+    :param Q: Modelo
+    :param state: Estado
+    :param action: Acción
+    :param reward: Recompensa
+    :param next_state: Siguiente estado
+    :param alpha: Tasa de aprendizaje
+    :param gamma: Factor de descuento
+    :return: Modelo actualizado
+    """
+
     dim = ROW_COUNT * COLUMN_COUNT
     state_representation = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
     next_state_representation = np.array(next_state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
@@ -402,6 +422,7 @@ def td_learning(Q, state, action, reward, next_state, alpha, gamma):
     if state_action not in Q:
         Q[state_action] = 0
 
+    # Actualización de valor
     Q[state_action] = Q[state_action] + alpha * (reward + gamma * Q[next_state_action] - Q[state_action])
 
     return Q
@@ -411,7 +432,7 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
     Q = {}
     alpha = 0.1
     gamma = 0.8
-    epsilon = 0.9
+    epsilon = 0.9 # estrategia de exploración epsilon-greedy 
     decay = 0.9999
 
     print("Entrenando el modelo TD...")
@@ -422,7 +443,6 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
         while not is_terminal_state(state):
             if turn == JUGADOR:  # Jugador a entrenar
                 action_space = get_action_space(state)
-                # print_board(decode_board_state(state))
                 
                 # epsilon-greedy
                 if random.uniform(0, 1) < epsilon:
@@ -456,7 +476,7 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
     return Q
 
 
-def play_td_vs_minimax(Q, algoritmo_alfa_beta=False):
+def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5):
     """
     Función para enfrentar el modelo TD contra el algoritmo minimax
     :param Q: Modelo TD
@@ -486,6 +506,7 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False):
                 if winning_move(board, JUGADOR_PIEZA):
                     print("Algoritmo de TD gana!!")
                     game_over = True
+                    
                     draw_board(board)
                     print_board(board)
 
@@ -496,9 +517,9 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False):
 
         if turn == IA and not game_over:  # Algoritmo de minimax
             if algoritmo_alfa_beta:
-                action, _ = minimax_pruning(board, 5, float('-inf'), float('inf'), False)
+                action, _ = minimax_pruning(board, profundidad, float('-inf'), float('inf'), False)
             else:
-                action, _ = minimax(board, 5, False)
+                action, _ = minimax(board, profundidad, False)
             if is_valid_location(board, action):
                 row = get_next_open_row(board, action)
                 drop_piece(board, row, action, IA_PIEZA)
@@ -521,9 +542,7 @@ print_board(board)
 game_over = False
 turn = 0
 
-# Entrenar el modelo
-
-Q_trained = train_td_learning(15000)
+Q_trained = train_td_learning(100_000) #Ciclo de entrenamiento
 print(Q_trained)
 
 pygame.init()
@@ -556,16 +575,23 @@ Algoritmo de IA
 2. Minimax con poda alfa-beta
 """
 
-ALGORITMO_IA = 1
-ALGORITMO_IA2 = 2
+IA2_Pruning = False
+IA2_Profundidad = 5
+JUEGOS = 75
 
 ganadores = []
-for i in range(25):
-    print("Jugando TD vs Minimax")
-    ganadores.append(play_td_vs_minimax(Q_trained, False))
+for i in range(JUEGOS):
+    print("Jugando TD vs Minimax ", i)
+    ganadores.append(play_td_vs_minimax(Q_trained, IA2_Pruning, IA2_Profundidad))
     game_over = True
 
 # imprimir los resultados como tabla de frecuencias
 print("Frecuencia de victorias")
 print("TD: ", ganadores.count(JUGADOR))
 print("Minimax: ", ganadores.count(IA))
+
+# graficar los resultados
+etiquetas = ['TD', 'Minimax']
+frecuencias = [ganadores.count(JUGADOR), ganadores.count(IA)]
+plt.bar(etiquetas, frecuencias)
+plt.show()
