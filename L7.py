@@ -152,6 +152,7 @@ def puntuacion_posicion(board, pieza):
 
     return score
 
+
 def lugares_validos(board):
     """
     Encuentra los lugares validos para dejar una pieza
@@ -174,18 +175,18 @@ def minimax(tablero, profundidad, maximizando_jugador):
     """
     Calcula el algoritmo minimax para obtener la mejor jugada
     """
-    es_terminal =  terminal(tablero)
+    es_terminal = terminal(tablero)
     if profundidad == 0 or es_terminal:  # profundidad == 0 o juego terminado
         if es_terminal:
             if winning_move(tablero, IA_PIEZA):
                 return (None, 100000000000000)
             elif winning_move(tablero, JUGADOR_PIEZA):
                 return (None, -10000000000000)
-            else: # no hay mas movimientos
+            else:  # no hay mas movimientos
                 return (None, 0)
-        else: # profundidad == 0
+        else:  # profundidad == 0
             return (None, puntuacion_posicion(tablero, IA_PIEZA))
-        
+
     if maximizando_jugador:
         valor_max = float('-inf')
         columna = random.choice(lugares_validos(tablero))
@@ -193,41 +194,41 @@ def minimax(tablero, profundidad, maximizando_jugador):
             fila = get_next_open_row(tablero, col)
             copia_tablero = tablero.copy()
             drop_piece(copia_tablero, fila, col, IA_PIEZA)
-            nuevo_valor = minimax(copia_tablero, profundidad-1, False)[1]  # Cambio de jugador
+            nuevo_valor = minimax(copia_tablero, profundidad - 1, False)[1]  # Cambio de jugador
             if nuevo_valor > valor_max:
                 valor_max = nuevo_valor
                 columna = col
         return columna, valor_max
-    else: # Minimizando jugador
+    else:  # Minimizando jugador
         valor_min = float('inf')
         columna = random.choice(lugares_validos(tablero))
-        for col in lugares_validos(tablero): # Se prueba cada columna
+        for col in lugares_validos(tablero):  # Se prueba cada columna
             fila = get_next_open_row(tablero, col)
             copia_tablero = tablero.copy()
             drop_piece(copia_tablero, fila, col, JUGADOR_PIEZA)
-            nuevo_valor = minimax(copia_tablero, profundidad-1, True)[1]  # Cambio de jugador
+            nuevo_valor = minimax(copia_tablero, profundidad - 1, True)[1]  # Cambio de jugador
             if nuevo_valor < valor_min:
                 valor_min = nuevo_valor
                 columna = col
         return columna, valor_min
-        
+
 
 def minimax_pruning(tablero, profundidad, alfa, beta, maximizando_jugador):
     """
     Calcula el algoritmo minimax con poda alfa-beta para obtener la mejor jugada
     """
-    es_terminal =  terminal(tablero)
+    es_terminal = terminal(tablero)
     if profundidad == 0 or es_terminal:
         if es_terminal:
             if winning_move(tablero, IA_PIEZA):
                 return (None, 100000000000000)
             elif winning_move(tablero, JUGADOR_PIEZA):
                 return (None, -10000000000000)
-            else: # no hay mas movimientos
+            else:  # no hay mas movimientos
                 return (None, 0)
-        else: # profundidad == 0
+        else:  # profundidad == 0
             return (None, puntuacion_posicion(tablero, IA_PIEZA))
-        
+
     if maximizando_jugador:
         valor_max = float('-inf')
         columna = random.choice(lugares_validos(tablero))
@@ -235,40 +236,42 @@ def minimax_pruning(tablero, profundidad, alfa, beta, maximizando_jugador):
             fila = get_next_open_row(tablero, col)
             copia_tablero = tablero.copy()
             drop_piece(copia_tablero, fila, col, IA_PIEZA)
-            nuevo_valor = minimax_pruning(copia_tablero, profundidad-1, alfa, beta, False)[1]
+            nuevo_valor = minimax_pruning(copia_tablero, profundidad - 1, alfa, beta, False)[1]
             if nuevo_valor > valor_max:
                 valor_max = nuevo_valor
                 columna = col
-            
+
             # Poda alfa
             alfa = max(alfa, valor_max)
-            if alfa >= beta:  
+            if alfa >= beta:
                 break
         return columna, valor_max
-    else: # Minimizando jugador
+    else:  # Minimizando jugador
         valor_min = float('inf')
         columna = random.choice(lugares_validos(tablero))
         for col in lugares_validos(tablero):  # Se prueba cada columna
             fila = get_next_open_row(tablero, col)
             copia_tablero = tablero.copy()
             drop_piece(copia_tablero, fila, col, JUGADOR_PIEZA)
-            nuevo_valor = minimax_pruning(copia_tablero, profundidad-1, alfa, beta, True)[1]
+            nuevo_valor = minimax_pruning(copia_tablero, profundidad - 1, alfa, beta, True)[1]
             if nuevo_valor < valor_min:
                 valor_min = nuevo_valor
                 columna = col
-            
+
             # Poda beta
             beta = min(beta, valor_min)
             if alfa >= beta:
                 break
         return columna, valor_min
-    
+
+
 """
 TD Learning
 """
 
-#Defina la representación del estado
-#matriz de representacion del tablero
+
+# Defina la representación del estado
+# matriz de representacion del tablero
 # 0: casilla vacia
 # 1: casilla ocupada por el jugador 1
 # 2: casilla ocupada por el jugador 2
@@ -276,7 +279,7 @@ TD Learning
 
 def get_state(board):  # Se define el estado como una lista de 43 elementos
     # board, turno, ganador
-    
+
     # Codificar el tablero de juego
     game_state = []
     for r in range(ROW_COUNT):
@@ -292,7 +295,7 @@ def get_state(board):  # Se define el estado como una lista de 43 elementos
     if turn == JUGADOR:
         game_state.append(1)  # Turno del jugador 1
     else:
-        game_state.append(-1)  # Turno del jugador 2
+        game_state.append(2)  # Turno del jugador 2
 
     # Agregar información sobre el estado del juego (si ha terminado y quién ha ganado)
     if winning_move(board, JUGADOR_PIEZA):
@@ -328,40 +331,47 @@ def decode_board_state(game_state):
         board.append(row)
     return board
 
+
 def get_reward(state, action, player):  # Se define la recompensa como 1 si el jugador gana, -1 si la IA gana, 0 si hay empate y 0.1 si el juego sigue
     board_from_state = decode_board_state(state)
     # print_board(board_from_state)
-    
+
     next_board = board_from_state.copy()
     row = get_next_open_row(next_board, action)
     drop_piece(next_board, row, action, JUGADOR_PIEZA)
 
     other_player = (player + 1) % 2
-    
-    if winning_move(next_board, player):
+
+    if winning_move(next_board, JUGADOR_PIEZA if player == JUGADOR else IA_PIEZA):
         return 100
-    elif winning_move(next_board, other_player):
+    elif winning_move(next_board, JUGADOR_PIEZA if other_player == JUGADOR else IA_PIEZA):
         return -100
     elif len(lugares_validos(next_board)) == 0:
         return -10
     else:
         return 1
-    
-def get_next_state(state, action):  # Se define el siguiente estado como el estado resultante de dejar una ficha en una columna
+
+
+def get_next_state(state, action, player):  # Se define el siguiente estado como el estado resultante de dejar una ficha en una columna
     dim = ROW_COUNT * COLUMN_COUNT
-    board_from_state = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    board_from_state = decode_board_state(state)
     next_board = board_from_state.copy()
+
     row = get_next_open_row(next_board, action)
-    drop_piece(next_board, row, action, JUGADOR_PIEZA)
+    drop_piece(next_board, row, action, JUGADOR_PIEZA if player == JUGADOR else IA_PIEZA)
+
     next_state = get_state(next_board)
+
     return next_state
 
 
 def get_initial_state():  # Se define el estado inicial como el tablero vacío
     return get_state(create_board())
 
+
 def is_terminal_state(state):  # Se define un estado terminal como un estado en el que el juego ha terminado
     return state[-1] != 0
+
 
 def get_winner(state):  # Se define el ganador como el jugador que ha ganado
     if state[-1] == 1:
@@ -370,13 +380,14 @@ def get_winner(state):  # Se define el ganador como el jugador que ha ganado
         return -1
     else:
         return 0
-    
+
+
 def get_state_representation(state):  # Se define la representación del estado como el tablero de juego
     dim = ROW_COUNT * COLUMN_COUNT
     return np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
 
 
-def td_learning(Q, state, action, reward, next_state, alpha, gamma):  
+def td_learning(Q, state, action, reward, next_state, alpha, gamma):
     dim = ROW_COUNT * COLUMN_COUNT
     state_representation = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
     next_state_representation = np.array(next_state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
@@ -384,7 +395,7 @@ def td_learning(Q, state, action, reward, next_state, alpha, gamma):
     next_action_space = get_action_space(next_state)
     next_action = random.choice(next_action_space)
     next_state_action = (tuple(next_state[:dim]), next_action)
-    
+
     if next_state_action not in Q:
         Q[next_state_action] = 0
 
@@ -392,7 +403,7 @@ def td_learning(Q, state, action, reward, next_state, alpha, gamma):
         Q[state_action] = 0
 
     Q[state_action] = Q[state_action] + alpha * (reward + gamma * Q[next_state_action] - Q[state_action])
-    
+
     return Q
 
 
@@ -406,11 +417,15 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
         turn = random.choice([JUGADOR, IA])
 
         while not is_terminal_state(state):
-            if turn == JUGADOR: # Jugador a entrenar
+            if turn == JUGADOR:  # Jugador a entrenar
                 action_space = get_action_space(state)
-                action = random.choice(action_space)
+                # print_board(decode_board_state(state))
+                
+                # find action with highest reward
+                action = max(action_space, key=lambda x: get_reward(state, x, JUGADOR))
                 reward = get_reward(state, action, JUGADOR)
-                next_state = get_next_state(state, action)
+
+                next_state = get_next_state(state, action, turn)
                 Q = td_learning(Q, state, action, reward, next_state, alpha, gamma)
                 state = next_state
                 turn += 1
@@ -420,11 +435,11 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
                 # este es cualquier jugador que no sea el jugador a entrenar. elige una acción aleatoria
                 action_space = get_action_space(state)
                 action = random.choice(action_space)
-                next_state = get_next_state(state, action)
+                next_state = get_next_state(state, action, turn)
                 state = next_state
 
                 turn += 1
-                turn = turn % 2                
+                turn = turn % 2
 
         if episode % 1000 == 0:
             print("Episodio", episode)
@@ -453,8 +468,8 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False):
         if turn == JUGADOR and not game_over:  # Algoritmo de TD
             state = get_state(board)
             action_space = get_action_space(state)
-            
-            action = max(action_space, key=lambda x: Q.get((tuple(state[:ROW_COUNT*COLUMN_COUNT]), x), 0))
+
+            action = max(action_space, key=lambda x: Q.get((tuple(state[:ROW_COUNT * COLUMN_COUNT]), x), 0))
 
             if is_valid_location(board, action):
                 row = get_next_open_row(board, action)
@@ -467,7 +482,6 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False):
                     print_board(board)
 
                     return JUGADOR
-
 
                 turn += 1
                 turn = turn % 2
@@ -501,9 +515,8 @@ turn = 0
 
 # Entrenar el modelo
 
-Q_trained = train_td_learning(5000)
+Q_trained = train_td_learning(15000)
 print(Q_trained)
-
 
 pygame.init()
 
@@ -521,7 +534,6 @@ draw_board(board)
 pygame.display.update()
 
 myfont = pygame.font.SysFont("monospace", 75)
-
 
 """
 Modos de Juego
