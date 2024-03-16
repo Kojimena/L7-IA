@@ -411,6 +411,9 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
     Q = {}
     alpha = 0.1
     gamma = 0.8
+    epsilon = 0.9
+    decay = 0.9999
+
     print("Entrenando el modelo TD...")
     for episode in range(episodes):
         state = get_initial_state()
@@ -421,9 +424,13 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
                 action_space = get_action_space(state)
                 # print_board(decode_board_state(state))
                 
-                # find action with highest reward
-                action = max(action_space, key=lambda x: get_reward(state, x, JUGADOR))
-                reward = get_reward(state, action, JUGADOR)
+                # epsilon-greedy
+                if random.uniform(0, 1) < epsilon:
+                    action = random.choice(action_space)
+                else:
+                    action = max(action_space, key=lambda x: Q.get((tuple(state[:ROW_COUNT * COLUMN_COUNT]), x), 0))
+
+                reward = get_reward(state, action, turn)
 
                 next_state = get_next_state(state, action, turn)
                 Q = td_learning(Q, state, action, reward, next_state, alpha, gamma)
@@ -441,6 +448,7 @@ def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-
                 turn += 1
                 turn = turn % 2
 
+        epsilon *= decay
         if episode % 1000 == 0:
             print("Episodio", episode)
 
