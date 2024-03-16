@@ -563,16 +563,11 @@ pygame.display.update()
 myfont = pygame.font.SysFont("monospace", 75)
 
 """
-Modos de Juego
-1. IA vs Jugador
-2. IA vs IA
-"""
-MODO_JUEGO = 3
+Modos de Juego TD vs Minimax
 
-"""
-Algoritmo de IA
-1. Minimax
-2. Minimax con poda alfa-beta
+Se juegan 75 partidas entre el modelo TD y el algoritmo minimax. Se grafican los resultados.
+El algoitmo minimax puede ser con o sin poda alfa-beta. La profundidad del árbol de búsqueda puede ser modificada.
+
 """
 
 IA2_Pruning = False
