@@ -664,7 +664,7 @@ print_board(board)
 game_over = False
 turn = 0
 
-Q_trained = train_q_learning(50_000)  # Ciclo de entrenamiento
+Q_trained = train_q_learning(200_000)  # Ciclo de entrenamiento
 print(Q_trained)
 
 input("Presione Enter para jugar contra el modelo entrenado\n")
