@@ -180,13 +180,13 @@ def minimax(tablero, profundidad, maximizando_jugador):
     if profundidad == 0 or es_terminal:  # profundidad == 0 o juego terminado
         if es_terminal:
             if winning_move(tablero, IA_PIEZA):
-                return (None, 100000000000000)
+                return None, 100000000000000
             elif winning_move(tablero, JUGADOR_PIEZA):
-                return (None, -10000000000000)
+                return None, -10000000000000
             else:  # no hay mas movimientos
-                return (None, 0)
+                return None, 0
         else:  # profundidad == 0
-            return (None, puntuacion_posicion(tablero, IA_PIEZA))
+            return None, puntuacion_posicion(tablero, IA_PIEZA)
 
     if maximizando_jugador:
         valor_max = float('-inf')
@@ -270,6 +270,7 @@ def minimax_pruning(tablero, profundidad, alfa, beta, maximizando_jugador):
 TD Learning
 """
 
+
 def get_state(board):
     """
     Representación del estado
@@ -301,11 +302,12 @@ def get_state(board):
     elif winning_move(board, IA_PIEZA):
         game_state.append(-1)  # El jugador 2 ha ganado
     elif len(lugares_validos(board)) == 0:
-        game_state.append(0)  # Empate
+        game_state.append(3)  # Empate
     else:
         game_state.append(0)  # Juego en curso
 
     return game_state
+
 
 def get_action_space(state):
     """
@@ -327,7 +329,7 @@ def decode_board_state(game_state):
             index = i * COLUMN_COUNT + j
             if game_state[index] == 1:
                 row.append(JUGADOR_PIEZA)
-            elif game_state[index] == -1:
+            elif game_state[index] == 2:
                 row.append(IA_PIEZA)
             else:
                 row.append(VACIO)
@@ -335,7 +337,18 @@ def decode_board_state(game_state):
     return board
 
 
-def get_reward(state, action, player): 
+def state_board_to_numpy(game_state):
+    """
+    Convertir el estado a un tablero de juego
+    :param game_state: Representación del estado
+    :return: Tablero de juego
+    """
+    dim = ROW_COUNT * COLUMN_COUNT
+    board_from_state = np.array(game_state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    return board_from_state
+
+
+def get_reward(state, action, player):
     """"
     Recompensas
     :param state: Representación del estado
@@ -413,6 +426,10 @@ def td_learning(Q, state, action, reward, next_state, alpha, gamma):
     next_state_representation = np.array(next_state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
     state_action = (tuple(state[:dim]), action)
     next_action_space = get_action_space(next_state)
+
+    if len(next_action_space) == 0:
+        next_action = random.choice(lugares_validos(next_state_representation))
+
     next_action = random.choice(next_action_space)
     next_state_action = (tuple(next_state[:dim]), next_action)
 
@@ -428,52 +445,141 @@ def td_learning(Q, state, action, reward, next_state, alpha, gamma):
     return Q
 
 
+def q_learning(Q, state, action, reward, alpha, gamma):
+    """
+    Algoritmo de aprendizaje Q
+    :param Q: Modelo
+    :param state: Estado
+    :param action: Acción
+    :param reward: Recompensa
+    :param alpha: Tasa de aprendizaje
+    :param gamma: Factor de descuento
+    :return: Modelo actualizado
+    """
+
+    dim = ROW_COUNT * COLUMN_COUNT
+    state_representation = np.array(state[:dim]).reshape(ROW_COUNT, COLUMN_COUNT)
+    state_action = (tuple(state[:dim]), action)
+    next_action_space = get_action_space(state)
+    next_action = random.choice(next_action_space)
+    next_state_action = (tuple(state[:dim]), next_action)
+
+    if next_state_action not in Q:
+        Q[next_state_action] = 0
+
+    if state_action not in Q:
+        Q[state_action] = 0
+
+    # Actualización de valor
+    Q[state_action] = Q[state_action] + alpha * (reward + gamma * Q[next_state_action] - Q[state_action])
+
+    return Q
+
+
 def train_td_learning(episodes):  # Se entrena el modelo usando el algoritmo TD-learning
-    Q = {}
+    training_q = {}
     alpha = 0.1
     gamma = 0.8
-    epsilon = 0.9 # estrategia de exploración epsilon-greedy 
+    epsilon = 0.9  # estrategia de exploración epsilon-greedy
     decay = 0.9999
 
     print("Entrenando el modelo TD...")
     for episode in range(episodes):
-        state = get_initial_state()
-        turn = random.choice([JUGADOR, IA])
+        training_state = get_initial_state()
+        training_turn = random.choice([JUGADOR, IA])
 
-        while not is_terminal_state(state):
-            if turn == JUGADOR:  # Jugador a entrenar
-                action_space = get_action_space(state)
-                
+        while not is_terminal_state(training_state):
+            if training_turn == JUGADOR:  # Jugador a entrenar
+                action_space = get_action_space(training_state)
+
                 # epsilon-greedy
                 if random.uniform(0, 1) < epsilon:
                     action = random.choice(action_space)
                 else:
-                    action = max(action_space, key=lambda x: Q.get((tuple(state[:ROW_COUNT * COLUMN_COUNT]), x), 0))
+                    action = max(action_space, key=lambda x: training_q.get((tuple(training_state[:ROW_COUNT * COLUMN_COUNT]), x), 0))
 
-                reward = get_reward(state, action, turn)
+                reward = get_reward(training_state, action, training_turn)
 
-                next_state = get_next_state(state, action, turn)
-                Q = td_learning(Q, state, action, reward, next_state, alpha, gamma)
-                state = next_state
-                turn += 1
-                turn = turn % 2
+                next_state = get_next_state(training_state, action, training_turn)
+                training_q = td_learning(training_q, training_state, action, reward, next_state, alpha, gamma)
+                training_state = next_state
+                training_turn += 1
+                training_turn = training_turn % 2
 
             else:
                 # este es cualquier jugador que no sea el jugador a entrenar. elige una acción aleatoria
-                action_space = get_action_space(state)
+                action_space = get_action_space(training_state)
                 action = random.choice(action_space)
-                next_state = get_next_state(state, action, turn)
-                state = next_state
+                next_state = get_next_state(training_state, action, training_turn)
+                training_state = next_state
 
-                turn += 1
-                turn = turn % 2
+                training_turn += 1
+                training_turn = training_turn % 2
 
         epsilon *= decay
         if episode % 1000 == 0:
             print("Episodio", episode)
 
     print("Modelo TD entrenado")
-    return Q
+    return training_q
+
+
+def train_q_learning(episodes):  # Se entrena el modelo usando el algoritmo Q-learning
+    training_q = {}
+    alpha = 0.2
+    gamma = 0.75
+    epsilon = 0.9  # estrategia de exploración epsilon-greedy
+    decay = 0.99999
+
+    print("Entrenando el modelo Q...")
+    for episode in range(episodes):
+        training_state = get_initial_state()
+        training_turn = random.choice([JUGADOR, IA])
+
+        while not is_terminal_state(training_state):
+            if training_turn == JUGADOR:
+                action_space = get_action_space(training_state)
+
+                # epsilon-greedy
+                if random.uniform(0, 1) < epsilon:
+                    action = random.choice(action_space)
+                else:
+                    action = max(action_space, key=lambda x: training_q.get((tuple(training_state[:ROW_COUNT * COLUMN_COUNT]), x), 0))
+
+                reward = get_reward(training_state, action, training_turn)
+                training_q = q_learning(training_q, training_state, action, reward, alpha, gamma)
+                next_state = get_next_state(training_state, action, training_turn)
+                training_state = next_state
+                training_turn += 1
+                training_turn = training_turn % 2
+
+            else:
+                # # entrenar contra un jugador minimax
+                # action_opponent, _ = minimax_pruning(state_board_to_numpy(training_state), 3, float('-inf'), float('inf'), True)
+                # next_state = get_next_state(training_state, action_opponent, training_turn)
+                # training_state = next_state
+                # training_turn += 1
+                # training_turn = training_turn % 2
+
+                # Entrenar contra un jugador aleatorio
+                action_space = get_action_space(training_state)
+
+                if random.uniform(0, 1) < epsilon:
+                    action = random.choice(action_space)
+                else:  # Elegir la acción con la reward más alta
+                    action = max(action_space, key=lambda x: training_q.get((tuple(training_state[:ROW_COUNT * COLUMN_COUNT]), x), 0))
+
+                next_state = get_next_state(training_state, action, training_turn)
+                training_state = next_state
+                training_turn += 1
+                training_turn = training_turn % 2
+
+        epsilon *= decay
+        if episode % 1000 == 0:
+            print("Episodio", episode, "Epsilon", epsilon)
+
+    print("Modelo Q entrenado", epsilon)
+    return training_q
 
 
 def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5):
@@ -493,6 +599,7 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5):
             if event.type == pygame.QUIT:
                 sys.exit()
 
+        # draw_board(board)
         if turn == JUGADOR and not game_over:  # Algoritmo de TD
             state = get_state(board)
             action_space = get_action_space(state)
@@ -506,7 +613,7 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5):
                 if winning_move(board, JUGADOR_PIEZA):
                     print("Algoritmo de TD gana!!")
                     game_over = True
-                    
+
                     draw_board(board)
                     print_board(board)
 
@@ -542,8 +649,10 @@ print_board(board)
 game_over = False
 turn = 0
 
-Q_trained = train_td_learning(100_000) #Ciclo de entrenamiento
+Q_trained = train_q_learning(200_000)  # Ciclo de entrenamiento
 print(Q_trained)
+
+input("Presione Enter para jugar contra el modelo entrenado")
 
 pygame.init()
 
@@ -571,7 +680,7 @@ El algoitmo minimax puede ser con o sin poda alfa-beta. La profundidad del árbo
 """
 
 IA2_Pruning = False
-IA2_Profundidad = 5
+IA2_Profundidad = 4
 JUEGOS = 75
 
 ganadores = []
