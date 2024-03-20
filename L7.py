@@ -273,7 +273,7 @@ TD Learning
 
 def get_state(board):
     """
-    Representación del estado
+    Representación del estado. Toma en cuenta el tablero de juego, el turno y el ganador
     :param board: Tablero de juego
     :return: Representación del estado
     """
@@ -311,7 +311,7 @@ def get_state(board):
 
 def get_action_space(state):
     """
-    Espacio de acción
+    Espacio de acción. Toma en cuenta el tablero de juego, regresando las columnas donde se pueden dejar fichas
     :param state: Representación del estado
     :return: Espacio de acción
     """
@@ -322,6 +322,11 @@ def get_action_space(state):
 
 
 def decode_board_state(game_state):
+    """
+    Decodificar el estado del juego
+    :param game_state: Representación del estado
+    :return: Tablero de juego
+    """
     board = []
     for i in range(ROW_COUNT):
         row = []
@@ -349,8 +354,8 @@ def state_board_to_numpy(game_state):
 
 
 def get_reward(state, action, player):
-    """"
-    Recompensas
+    """
+    Recompensas para el jugador en función de la acción
     :param state: Representación del estado
     :param action: Acción
     :param player: Jugador
@@ -374,6 +379,12 @@ def get_reward(state, action, player):
 
 
 def get_next_state(state, action, player):  # Se define el siguiente estado como el estado resultante de dejar una ficha en una columna
+    """
+    Siguiente estado en función de la acción
+    :param state: Representación del estado
+    :param action: Acción
+    :param player: Jugador
+    """
     dim = ROW_COUNT * COLUMN_COUNT
     board_from_state = decode_board_state(state)
     next_board = board_from_state.copy()
@@ -529,7 +540,7 @@ def train_q_learning(episodes):  # Se entrena el modelo usando el algoritmo Q-le
     alpha = 0.2
     gamma = 0.75
     epsilon = 0.9  # estrategia de exploración epsilon-greedy
-    decay = 0.99999
+    decay = 0.99995
 
     print("Entrenando el modelo Q...")
     for episode in range(episodes):
@@ -582,11 +593,12 @@ def train_q_learning(episodes):  # Se entrena el modelo usando el algoritmo Q-le
     return training_q
 
 
-def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5):
+def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5, draw=False):
     """
     Función para enfrentar el modelo TD contra el algoritmo minimax
     :param Q: Modelo TD
     :param algoritmo_alfa_beta: Si es True, se usa el algoritmo minimax con poda alfa-beta
+    :param profundidad: Profundidad del árbol de búsqueda
     """
 
     board = create_board()
@@ -599,7 +611,10 @@ def play_td_vs_minimax(Q, algoritmo_alfa_beta=False, profundidad=5):
             if event.type == pygame.QUIT:
                 sys.exit()
 
-        # draw_board(board)
+        if draw:
+            draw_board(board)
+            pygame.time.wait(100)
+
         if turn == JUGADOR and not game_over:  # Algoritmo de TD
             state = get_state(board)
             action_space = get_action_space(state)
@@ -649,10 +664,10 @@ print_board(board)
 game_over = False
 turn = 0
 
-Q_trained = train_q_learning(200_000)  # Ciclo de entrenamiento
+Q_trained = train_q_learning(50_000)  # Ciclo de entrenamiento
 print(Q_trained)
 
-input("Presione Enter para jugar contra el modelo entrenado")
+input("Presione Enter para jugar contra el modelo entrenado\n")
 
 pygame.init()
 
@@ -699,3 +714,17 @@ etiquetas = ['TD', 'Minimax']
 frecuencias = [ganadores.count(JUGADOR), ganadores.count(IA)]
 plt.bar(etiquetas, frecuencias)
 plt.show()
+
+"""
+Juegos para el video
+"""
+
+# print("Jugando TD vs Minimax")
+# play_td_vs_minimax(Q_trained, False, 5, draw=True)
+#
+# pygame.time.wait(5000)
+#
+# print("Jugando TD vs Minimax con poda alfa-beta")
+# play_td_vs_minimax(Q_trained, True, 5, draw=True)
+#
+# pygame.time.wait(5000)
